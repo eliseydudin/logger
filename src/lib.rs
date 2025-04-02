@@ -1,22 +1,22 @@
 #![feature(thread_id_value)]
+#![feature(try_blocks)]
 
 use chrono::Utc;
 use core::fmt;
 use log::{Level, Log};
 use std::{
-    io::{self, Error, Write},
-    sync::{Mutex, OnceLock},
-    thread,
+    io::{self, BufWriter},
+    sync, thread,
 };
 
 pub struct Logger {
-    inner: Box<Mutex<dyn Write + Send>>,
+    inner: Box<sync::Mutex<dyn io::Write + Send>>,
 }
 
 impl fmt::Debug for Logger {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Logger")
-            .field("inner", &"Box(<locked>)")
+            .field("inner", &"<locked>")
             .finish()
     }
 }
@@ -24,31 +24,48 @@ impl fmt::Debug for Logger {
 unsafe impl Send for Logger {}
 
 impl Logger {
-    pub fn new(s: impl Write + Send + 'static) -> Self {
+    pub fn new<F>(s: F) -> Self
+    where
+        F: io::Write + Send + 'static,
+    {
         Self {
-            inner: Box::new(Mutex::new(s)),
+            inner: Box::new(sync::Mutex::new(s)),
         }
     }
 
-    pub fn replace_logger(s: impl Write + Send + 'static) {
+    pub fn new_buffered<F>(file: F) -> Self
+    where
+        F: io::Write + Send + 'static,
+    {
+        let bufwriter = BufWriter::new(file);
+        Self::new(bufwriter)
+    }
+
+    pub fn replace_logger<F>(s: F)
+    where
+        F: io::Write + Send + 'static,
+    {
         LOGGER
             .set(Logger::new(s))
             .expect("Replacing the logger failed")
     }
 
-    fn unwrap(&self) -> Result<std::sync::MutexGuard<'_, dyn Write + Send + 'static>, Error> {
+    fn unwrap(&self) -> Result<sync::MutexGuard<'_, dyn io::Write + Send + 'static>, io::Error> {
         self.inner
             .lock()
-            .map_err(|_| Error::new(io::ErrorKind::Other, "Mutex poisoned!"))
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "Mutex poisoned!"))
     }
 
-    pub fn init(s: impl Write + Send + 'static) {
+    pub fn init<F>(s: F)
+    where
+        F: io::Write + Send + 'static,
+    {
         log::set_logger(LOGGER.get_or_init(|| Logger::new(s)))
             .expect("Cannot initialize the logger");
     }
 }
 
-impl Write for Logger {
+impl io::Write for Logger {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.unwrap().map(|mut lock| lock.write(buf))?
     }
@@ -97,18 +114,18 @@ impl Log for Logger {
             }
         };
 
-        match self.unwrap() {
-            Ok(mut lock) => {
-                let _ = writeln!(
-                    lock,
-                    "{}{color}  <{thread}>\t[{label}]{RESET_COLOR} {}",
-                    Utc::now().format("%H:%M:%S"),
-                    record.args()
-                );
-            }
-            Err(e) => panic!("Cannot write to the logger: {e}"),
+        let result: Result<(), io::Error> = try {
+            let mut lock = self.unwrap()?;
+            writeln!(
+                lock,
+                "{}{color} {thread} [{label}]{RESET_COLOR} {}",
+                Utc::now().format("%H:%M:%S"),
+                record.args()
+            )?;
         };
+
+        result.expect("Cannot write to the logger")
     }
 }
 
-static LOGGER: OnceLock<Logger> = OnceLock::new();
+static LOGGER: sync::OnceLock<Logger> = sync::OnceLock::new();
