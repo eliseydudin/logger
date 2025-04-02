@@ -37,7 +37,7 @@ impl Logger {
     where
         F: io::Write + Send + 'static,
     {
-        let bufwriter = BufWriter::new(file);
+        let bufwriter = BufWriter::with_capacity(50, file);
         Self::new(bufwriter)
     }
 
@@ -60,7 +60,17 @@ impl Logger {
     where
         F: io::Write + Send + 'static,
     {
+        log::set_max_level(log::LevelFilter::Trace);
         log::set_logger(LOGGER.get_or_init(|| Logger::new(s)))
+            .expect("Cannot initialize the logger");
+    }
+
+    pub fn init_buffered<F>(s: F)
+    where
+        F: io::Write + Send + 'static,
+    {
+        log::set_max_level(log::LevelFilter::Trace);
+        log::set_logger(LOGGER.get_or_init(|| Logger::new_buffered(s)))
             .expect("Cannot initialize the logger");
     }
 }
@@ -129,3 +139,19 @@ impl Log for Logger {
 }
 
 static LOGGER: sync::OnceLock<Logger> = sync::OnceLock::new();
+
+#[inline]
+pub fn init<F>(f: F)
+where
+    F: io::Write + Send + 'static,
+{
+    Logger::init(f);
+}
+
+#[inline]
+pub fn init_buffered<F>(f: F)
+where
+    F: io::Write + Send + 'static,
+{
+    Logger::init_buffered(f);
+}
