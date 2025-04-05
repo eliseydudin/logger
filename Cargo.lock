@@ -99,6 +99,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy-exclusive"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff161858d1a50808849d6adb9f8a4ff2e43125ce28b68127ac5eb84ccbbb6eec"
+dependencies = [
+ "windows-link",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -115,6 +124,7 @@ name = "logger"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "lazy-exclusive",
  "log",
 ]
 

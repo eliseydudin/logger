@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 chrono = "0.4.40"
-log = "0.4.27"
+lazy-exclusive = "1.0.1"
+log = { version = "0.4.27", features = ["std"] }

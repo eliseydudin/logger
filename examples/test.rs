@@ -1,7 +1,7 @@
 use std::{error::Error, fs::File};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    logger::init_stdout();
+    logger::init()?;
     log::set_max_level(log::LevelFilter::Trace);
 
     log::info!("info");
@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     log::warn!("warn");
 
     let new_file = File::create("test.txt")?;
-    logger::swap(new_file);
+    logger::replace_logger(new_file);
     log::info!("hello kro...");
 
     Ok(())
